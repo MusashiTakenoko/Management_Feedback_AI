@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>マネジメントフィードバックAI（Dify連携・チャットUI）</title>
+  <!-- 丸みのある日本語フォント -->
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#F7FBFF; --card:#FFFFFF; --line:#E6F0FA; --text:#16324F;
+      --muted:#6B90B6; --pri:#4BA3FF; --pri-600:#2D8CFF;
+      --pill:#E6F3FF; --shadow:0 8px 24px rgba(45,140,255,0.08);
+      --radius:16px;
+    }
+    body{ margin:0; background:var(--bg); color:var(--text);
+      font-family:"M PLUS Rounded 1c",sans-serif; line-height:1.7; }
+    header{ padding:16px 20px; background:#fff; border-bottom:1px solid var(--line);
+      display:flex; align-items:center; gap:12px; }
+    header img{ width:40px; height:40px; border-radius:50%; }
+    h1{ margin:0; font-size:20px; font-weight:700; }
+    .lead{ margin:0; color:var(--muted); font-size:14px; }
+    .page{ display:grid; gap:16px; grid-template-columns:380px 1fr;
+      max-width:1200px; margin:0 auto; padding:16px; }
+    @media(max-width:1024px){ .page{ grid-template-columns:1fr; } }
+    .card{ background:var(--card); border:1px solid var(--line);
+      border-radius:var(--radius); box-shadow:var(--shadow); }
+    .body{ padding:16px; }
+    label{ font-weight:700; font-size:13px; margin:12px 0 6px; display:block; }
+    input[type=text], textarea{
+      width:100%; padding:12px; border:1.5px solid var(--line);
+      border-radius:12px; font-size:14px; outline:none;
+    }
+    input:focus, textarea:focus{
+      border-color:var(--pri); box-shadow:0 0 0 4px rgba(75,163,255,.15);
+    }
+    textarea{ min-height:160px; resize:vertical; }
+    button{ border:0; border-radius:12px; padding:12px 16px;
+      font-weight:700; cursor:pointer; }
+    .btn-primary{ background:var(--pri); color:#fff; }
+    .btn-primary:hover{ background:var(--pri-600); }
+    .btn-ghost{ background:#ECF5FF; color:var(--pri-600); }
+    .chat{ display:flex; flex-direction:column; height:calc(100vh - 120px); }
+    .messages{ flex:1; overflow:auto; padding:16px; }
+    .msg{ max-width:80%; padding:12px 14px; border-radius:14px; margin:6px 0; white-space:pre-wrap; box-shadow:var(--shadow); }
+    .msg.user{ margin-left:auto; background:#E9F4FF; }
+    .msg.bot{ margin-right:auto; background:#fff; border:1px solid var(--line); }
+    .composer{ display:flex; gap:10px; padding:12px; border-top:1px solid var(--line); }
+    .composer textarea{ flex:1; min-height:44px; }
+    .hint{ font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <!-- 添付画像をタイトル先頭に表示 -->
+    <img src="logomane.png" alt="logo">
+    <div>
+      <h1>マネジメントフィードバックAI 3.0</h1>
+      <p class="lead">By Smart Boarding</p>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- 左フォーム -->
+    <section class="card">
+      <div class="body">
+        <label for="name">氏名（必須）</label>
+        <input id="name" type="text" placeholder="例：河野さん" required>
+
+        <label for="relation">誰との1on1（関係性）</label>
+        <input id="relation" type="text" placeholder="例：営業部の部下A（入社2年目）">
+
+        <label for="category">どんな1on1（目的・カテゴリ）</label>
+        <input id="category" type="text" placeholder="例：② 業務進捗・成果管理系">
+
+        <label for="transcript">会話ログ（文字起こしテキスト）</label>
+        <textarea id="transcript" placeholder="ここに会話ログを貼り付け"></textarea>
+
+        <label for="fileInput">（任意）文字起こしファイルを添付</label>
+        <input type="file" id="fileInput">
+        <button class="btn-ghost" id="uploadBtn">アップロード</button>
+        <p class="hint" id="uploadStatus"></p>
+
+        <button class="btn-primary" id="startEvalBtn" style="margin-top:12px;">送信して評価を開始</button>
+      </div>
+    </section>
+
+    <!-- 右チャット -->
+    <section class="card chat">
+      <div id="messages" class="messages">
+        <div class="msg bot">こんにちは！フォームを送るか、ここで直接入力して評価を始めてください。</div>
+      </div>
+      <div class="composer">
+        <textarea id="chatInput" placeholder="ここにメッセージを入力"></textarea>
+        <button class="btn-primary" id="sendMsgBtn">送信</button>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const API_BASE="https://api.dify.ai/v1";
+  const API_KEY="app-wE4gSf6b0QJFQz13YNXhMnC4"; // ←差し替え
+  let conversationId=null;
+  let lastUploadedFileId=null;
+  const userId="kawano-demo-user";
+
+  const $messages=document.getElementById("messages");
+  function addMessage(role,text){
+    const div=document.createElement("div");
+    div.className="msg "+(role==="user"?"user":"bot");
+    div.textContent=text;
+    $messages.appendChild(div);
+    $messages.scrollTop=$messages.scrollHeight;
+  }
+  function setThinking(on=true){
+    if(on){ addMessage("bot","…考え中"); }
+    else{
+      const nodes=[...$messages.querySelectorAll(".msg.bot")];
+      for(let i=nodes.length-1;i>=0;i--){
+        if(nodes[i].textContent==="…考え中"){ nodes[i].remove(); break; }
+      }
+    }
+  }
+
+  async function callDify(queryText){
+    addMessage("user",queryText);
+    setThinking(true);
+
+    const files=[];
+    if(lastUploadedFileId){
+      files.push({type:"file",transfer_method:"local",upload_file_id:lastUploadedFileId});
+    }
+
+    const body={inputs:{},query:queryText,user:userId,response_mode:"blocking",conversation_id:conversationId,files};
+
+    try{
+      const res=await fetch(`${API_BASE}/chat-messages`,{
+        method:"POST",
+        headers:{"Authorization":`Bearer ${API_KEY}`,"Content-Type":"application/json"},
+        body:JSON.stringify(body)
+      });
+      const text=await res.text();
+      if(!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
+      const data=JSON.parse(text);
+      conversationId=data.conversation_id||conversationId;
+      setThinking(false);
+      addMessage("bot",data.answer||"(応答なし)");
+    }catch(e){
+      setThinking(false);
+      addMessage("bot","エラー:"+e.message);
+    }
+  }
+
+  document.getElementById("sendMsgBtn").addEventListener("click",()=>{
+    const msg=document.getElementById("chatInput").value.trim();
+    if(!msg) return;
+    document.getElementById("chatInput").value="";
+    callDify(msg);
+  });
+
+  document.getElementById("startEvalBtn").addEventListener("click",()=>{
+    const name=document.getElementById("name").value.trim();
+    if(!name){ alert("氏名は必須です"); return; }
+    const relation=document.getElementById("relation").value.trim();
+    const category=document.getElementById("category").value.trim();
+    const transcript=document.getElementById("transcript").value.trim();
+    const query=[`氏名：${name}`,relation?`参加者：${relation}`:"",category?`種別：${category}`:"",transcript?`会話ログ：\n${transcript}`:""].filter(Boolean).join("\n\n");
+    callDify(query);
+  });
+
+  document.getElementById("uploadBtn").addEventListener("click",async()=>{
+    const file=document.getElementById("fileInput").files[0];
+    if(!file){ alert("ファイルを選択してください"); return; }
+    const status=document.getElementById("uploadStatus");
+    try{
+      status.textContent="アップロード中…";
+      const form=new FormData(); form.append("file",file);
+      const res=await fetch(`${API_BASE}/files`,{method:"POST",headers:{"Authorization":`Bearer ${API_KEY}`},body:form});
+      if(!res.ok) throw new Error("アップロード失敗");
+      const data=await res.json();
+      lastUploadedFileId=data.id;
+      status.textContent="アップロード完了 ✓";
+    }catch(e){ status.textContent="アップロード失敗"; }
+  });
+</script>
+</body>
+</html>
