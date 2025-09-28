@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>マネジメントフィードバックAI（Dify連携・チャットUI）</title>
+  <title>マネジメントフィードバックAI</title>
   <!-- 丸みのある日本語フォント -->
   <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -64,19 +64,19 @@
     <!-- 左フォーム -->
     <section class="card">
       <div class="body">
-        <label for="name">氏名（必須）</label>
-        <input id="name" type="text" placeholder="例：河野さん" required>
+        <label for="name">氏名</label>
+        <input id="name" type="text" placeholder="例：田中" required>
 
-        <label for="relation">誰との1on1（関係性）</label>
-        <input id="relation" type="text" placeholder="例：営業部の部下A（入社2年目）">
+        <label for="relation">誰との1on1か？（関係性も記載してください）</label>
+        <input id="relation" type="text" placeholder="例：吹田君（同じチームの部下、入社1年目）">
 
         <label for="category">どんな1on1（目的・カテゴリ）</label>
-        <input id="category" type="text" placeholder="例：② 業務進捗・成果管理系">
+        <input id="category" type="text" placeholder="例：日次の進捗確認・キャリアについて">
 
         <label for="transcript">会話ログ（文字起こしテキスト）</label>
-        <textarea id="transcript" placeholder="ここに会話ログを貼り付け"></textarea>
+        <textarea id="transcript" placeholder="ここに会話ログをそのまま貼り付けてください（下部よりテキストファイルをアップロードすることもできます）"></textarea>
 
-        <label for="fileInput">（任意）文字起こしファイルを添付</label>
+        <label for="fileInput">文字起こしファイルを添付</label>
         <input type="file" id="fileInput">
         <button class="btn-ghost" id="uploadBtn">アップロード</button>
         <p class="hint" id="uploadStatus"></p>
@@ -88,7 +88,7 @@
     <!-- 右チャット -->
     <section class="card chat">
       <div id="messages" class="messages">
-        <div class="msg bot">こんにちは！フォームを送るか、ここで直接入力して評価を始めてください。</div>
+        <div class="msg bot">こんにちは！1on1会話ログ（文字お越しデータ）の入力で、あなたの指導に関してフィードバックいたします！フォームに必要事項を入力し、評価を始めてください。</div>
       </div>
       <div class="composer">
         <textarea id="chatInput" placeholder="ここにメッセージを入力"></textarea>
@@ -185,3 +185,4 @@
 </script>
 </body>
 </html>
+
